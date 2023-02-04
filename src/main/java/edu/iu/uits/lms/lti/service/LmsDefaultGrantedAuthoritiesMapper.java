@@ -33,9 +33,13 @@ package edu.iu.uits.lms.lti.service;
  * #L%
  */
 
+import com.nimbusds.jose.shaded.json.JSONObject;
 import edu.iu.uits.lms.lti.LTIConstants;
 import edu.iu.uits.lms.lti.repository.DefaultInstructorRoleRepository;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.boot.actuate.audit.listener.AuditApplicationEvent;
+import org.springframework.boot.actuate.security.AuthenticationAuditListener;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.security.core.GrantedAuthority;
 import org.springframework.security.core.authority.mapping.GrantedAuthoritiesMapper;
 import org.springframework.security.oauth2.core.oidc.user.OidcUserAuthority;
@@ -43,17 +47,23 @@ import org.springframework.security.oauth2.core.oidc.user.OidcUserAuthority;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 @Slf4j
 public class LmsDefaultGrantedAuthoritiesMapper implements GrantedAuthoritiesMapper {
 
    private DefaultInstructorRoleRepository defaultInstructorRoleRepository;
 
+   private ApplicationEventPublisher applicationEventPublisher;
+
    public LmsDefaultGrantedAuthoritiesMapper() {}
 
-   public LmsDefaultGrantedAuthoritiesMapper(DefaultInstructorRoleRepository defaultInstructorRoleRepository) {
+   public LmsDefaultGrantedAuthoritiesMapper(DefaultInstructorRoleRepository defaultInstructorRoleRepository,
+                                             ApplicationEventPublisher applicationEventPublisher) {
       this.defaultInstructorRoleRepository = defaultInstructorRoleRepository;
+      this.applicationEventPublisher = applicationEventPublisher;
    }
 
    @Override
@@ -69,6 +79,28 @@ public class LmsDefaultGrantedAuthoritiesMapper implements GrantedAuthoritiesMap
          OidcUserAuthority newUserAuth = new OidcUserAuthority(newAuthString, userAuth.getIdToken(), userAuth.getUserInfo());
 
          remappedAuthorities.add(newUserAuth);
+
+         try {
+            JSONObject jsonObject = (JSONObject) userAuth.getAttributes()
+                    .get("https://purl.imsglobal.org/spec/lti/claim/custom");
+
+            String userId   = jsonObject.getAsString("canvas_user_login_id");
+            String courseId = jsonObject.getAsString("canvas_course_id");
+
+            Map<String, Object> details = new HashMap<>();
+
+            details.put("USER ID", userId);
+            details.put("COURSE ID", courseId);
+
+            AuditApplicationEvent auditApplicationEvent = new AuditApplicationEvent("LTI",
+                    AuthenticationAuditListener.AUTHENTICATION_SUCCESS.toString(),
+                    details
+            );
+
+            applicationEventPublisher.publishEvent(auditApplicationEvent);
+         } catch (Exception e) {
+            log.error(e.getMessage());
+         }
       }
 
       return remappedAuthorities;

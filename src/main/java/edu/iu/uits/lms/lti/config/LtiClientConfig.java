@@ -51,6 +51,7 @@ import org.springframework.boot.autoconfigure.security.oauth2.client.OAuth2Clien
 import org.springframework.boot.context.properties.ConfigurationProperties;
 import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.boot.orm.jpa.EntityManagerFactoryBuilder;
+import org.springframework.context.ApplicationEventPublisher;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.ComponentScan;
 import org.springframework.context.annotation.FilterType;
@@ -113,6 +114,9 @@ public class LtiClientConfig implements ImportAware {
    @Autowired
    private DefaultInstructorRoleRepository defaultInstructorRoleRepository;
 
+   @Autowired
+   private ApplicationEventPublisher applicationEventPublisher;
+
    @Override
    public void setImportMetadata(AnnotationMetadata annotationMetadata) {
       Map<String, Object> attributeMap = annotationMetadata
@@ -133,7 +137,7 @@ public class LtiClientConfig implements ImportAware {
 
    @Bean
    public LmsDefaultGrantedAuthoritiesMapper lmsDefaultGrantedAuthoritiesMapper() {
-      return new LmsDefaultGrantedAuthoritiesMapper(defaultInstructorRoleRepository);
+      return new LmsDefaultGrantedAuthoritiesMapper(defaultInstructorRoleRepository, applicationEventPublisher);
    }
 
    @Bean
